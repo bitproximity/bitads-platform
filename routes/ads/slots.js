@@ -30,7 +30,7 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   const {
     slot_type, external_venue_id, external_venue_name, external_resource_id,
-    specs, max_ad_share_pct, base_price_cpm, base_price_daily
+    country, specs, max_ad_share_pct, base_price_cpm, base_price_daily
   } = req.body;
 
   const validTypes = ['screen', 'wifi_portal', 'audio', 'web_banner'];
@@ -50,6 +50,7 @@ router.post('/', async (req, res) => {
         external_venue_id,
         external_venue_name: external_venue_name || null,
         external_resource_id: external_resource_id || null,
+        country: country || null,
         specs: specs || {},
         max_ad_share_pct: max_ad_share_pct ?? 20.00,
         base_price_cpm: base_price_cpm ?? null,
@@ -72,7 +73,7 @@ router.post('/', async (req, res) => {
 // PATCH /api/ads/slots/:id
 router.patch('/:id', async (req, res) => {
   const { id } = req.params;
-  const allowedFields = ['status', 'max_ad_share_pct', 'base_price_cpm', 'base_price_daily', 'is_monetizable', 'specs', 'external_venue_name'];
+  const allowedFields = ['status', 'max_ad_share_pct', 'base_price_cpm', 'base_price_daily', 'is_monetizable', 'specs', 'external_venue_name', 'country'];
   const updates = {};
   for (const field of allowedFields) {
     if (req.body[field] !== undefined) updates[field] = req.body[field];
