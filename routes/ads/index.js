@@ -5,5 +5,8 @@ const router = express.Router();
 router.use('/slots', require('./slots'));
 router.use('/campaigns', require('./campaigns'));
 router.use('/rotation', require('./rotation'));
+router.use('/leads', require('./leads'));
+router.use('/signup', require('./signup'));
+router.use('/marketplace', require('./marketplace'));
 
 module.exports = router;
