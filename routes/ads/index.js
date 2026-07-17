@@ -8,5 +8,6 @@ router.use('/rotation', require('./rotation'));
 router.use('/leads', require('./leads'));
 router.use('/signup', require('./signup'));
 router.use('/marketplace', require('./marketplace'));
+router.use('/moderation', require('./moderation'));
 
 module.exports = router;
