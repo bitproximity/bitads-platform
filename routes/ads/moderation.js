@@ -8,6 +8,7 @@ const express = require('express');
 const router = express.Router();
 const { supabaseAdmin } = require('../../lib/supabaseClient');
 const tenantAuth = require('../../middleware/tenantAuth');
+const { notifyCreativeRejected } = require('../../lib/email');
 
 router.use(tenantAuth);
 
@@ -92,7 +93,7 @@ router.patch('/:creativeId', async (req, res) => {
 
     const { data: creative, error: fetchErr } = await supabaseAdmin
       .from('ad_creatives')
-      .select('id, campaign_id')
+      .select('id, campaign_id, ad_campaigns(name, ads_advertisers(name, contact_email))')
       .eq('id', creativeId)
       .single();
 
@@ -112,6 +113,16 @@ router.patch('/:creativeId', async (req, res) => {
       .single();
 
     if (error) throw error;
+
+    if (status === 'rejected') {
+      const advertiser = creative.ad_campaigns?.ads_advertisers;
+      const campaignName = creative.ad_campaigns?.name;
+      if (advertiser?.contact_email) {
+        notifyCreativeRejected(advertiser.contact_email, advertiser.name, campaignName, rejection_reason)
+          .catch(e => console.warn('[ads/moderation] no se pudo enviar notificación de rechazo', e));
+      }
+    }
+
     res.json({ creative: data });
   } catch (err) {
     console.error('[ads/moderation] PATCH /:creativeId', err);
