@@ -6,6 +6,7 @@ const express = require('express');
 const router = express.Router();
 const { supabaseAdmin } = require('../../lib/supabaseClient');
 const advertiserAuth = require('../../middleware/advertiserAuth');
+const { notifySlotBooked } = require('../../lib/email');
 
 router.use(advertiserAuth);
 
@@ -154,7 +155,7 @@ router.post('/:id/book', async (req, res) => {
   try {
     const { data: campaign, error: campaignErr } = await supabaseAdmin
       .from('ad_campaigns')
-      .select('id')
+      .select('id, name')
       .eq('id', id)
       .eq('advertiser_id', req.advertiserId)
       .single();
@@ -163,7 +164,7 @@ router.post('/:id/book', async (req, res) => {
 
     const { data: slot, error: slotErr } = await supabaseAdmin
       .from('ad_slots')
-      .select('id, status')
+      .select('id, status, external_venue_name, bitads_tenants(name, contact_email)')
       .eq('id', slot_id)
       .eq('status', 'active')
       .single();
@@ -184,10 +185,49 @@ router.post('/:id/book', async (req, res) => {
       .single();
 
     if (error) throw error;
+
+    const tenant = slot.bitads_tenants;
+    if (tenant?.contact_email) {
+      notifySlotBooked(tenant.contact_email, tenant.name, slot.external_venue_name, campaign.name || 'Una campaña')
+        .catch(e => console.warn('[ads/campaigns] no se pudo enviar notificación de reserva', e));
+    }
+
     res.status(201).json({ booking: data });
   } catch (err) {
     console.error('[ads/campaigns] POST /:id/book', err);
     res.status(500).json({ error: 'No se pudo reservar el slot (¿ya está reservado por esta campaña?)' });
+  }
+});
+
+// PATCH /api/ads/campaigns/:id/book/:bookingId/cancel — cancelar una reserva propia
+router.patch('/:id/book/:bookingId/cancel', async (req, res) => {
+  const { id, bookingId } = req.params;
+
+  try {
+    const { data: campaign, error: campaignErr } = await supabaseAdmin
+      .from('ad_campaigns')
+      .select('id')
+      .eq('id', id)
+      .eq('advertiser_id', req.advertiserId)
+      .single();
+
+    if (campaignErr || !campaign) return res.status(404).json({ error: 'Campaña no encontrada' });
+
+    const { data, error } = await supabaseAdmin
+      .from('ad_campaign_slots')
+      .update({ status: 'cancelled' })
+      .eq('id', bookingId)
+      .eq('campaign_id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    if (!data) return res.status(404).json({ error: 'Reserva no encontrada' });
+
+    res.json({ booking: data });
+  } catch (err) {
+    console.error('[ads/campaigns] PATCH /:id/book/:bookingId/cancel', err);
+    res.status(500).json({ error: 'No se pudo cancelar la reserva' });
   }
 });
 
