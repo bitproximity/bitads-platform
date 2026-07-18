@@ -92,7 +92,7 @@ router.patch('/:id/status', async (req, res) => {
 // POST /api/ads/campaigns/:id/creatives
 router.post('/:id/creatives', async (req, res) => {
   const { id } = req.params;
-  const { creative_type, file_url, duration_sec, dimensions, applicable_slot_types } = req.body;
+  const { creative_type, file_url, duration_sec, dimensions, applicable_slot_types, destination_url } = req.body;
 
   const validCreativeTypes = ['image', 'video', 'audio', 'html5'];
   if (!validCreativeTypes.includes(creative_type)) {
@@ -124,6 +124,7 @@ router.post('/:id/creatives', async (req, res) => {
         file_url,
         duration_sec: duration_sec || null,
         dimensions: dimensions || null,
+        destination_url: destination_url || null,
         applicable_slot_types,
         review_status: 'pending'
       })
