@@ -202,4 +202,123 @@ router.get('/slots/:id', tenantAuth, async (req, res) => {
   }
 });
 
+// GET /api/ads/reporting/tenant/overview — resumen agregado de todo el inventario del tenant
+router.get('/tenant/overview', tenantAuth, async (req, res) => {
+  try {
+    const { data: slots, error: slotsErr } = await supabaseAdmin
+      .from('ad_slots')
+      .select('id, status')
+      .eq('bitads_tenant_id', req.bitadsTenantId);
+    if (slotsErr) throw slotsErr;
+
+    const slotIds = slots.map(s => s.id);
+    const activeSlots = slots.filter(s => s.status === 'active').length;
+
+    if (slotIds.length === 0) {
+      return res.json({ total_slots: 0, active_slots: 0, total_impressions: 0, total_revenue: 0, total_bookings: 0 });
+    }
+
+    const { data: bookings, error: bookErr } = await supabaseAdmin
+      .from('ad_campaign_slots')
+      .select('id, agreed_price, pricing_model')
+      .in('slot_id', slotIds);
+    if (bookErr) throw bookErr;
+
+    const bookingIds = bookings.map(b => b.id);
+    let impressions = [];
+    if (bookingIds.length > 0) {
+      const { data: imps, error: impErr } = await supabaseAdmin
+        .from('ad_impressions')
+        .select('campaign_slot_id, occurred_at, estimated_count')
+        .in('campaign_slot_id', bookingIds);
+      if (impErr) throw impErr;
+      impressions = imps;
+    }
+
+    let totalImpressions = 0;
+    let totalRevenue = 0;
+    bookings.forEach(b => {
+      const bImps = impressions.filter(i => i.campaign_slot_id === b.id);
+      const count = bImps.reduce((sum, i) => sum + (i.estimated_count || 0), 0);
+      totalImpressions += count;
+      if (b.pricing_model === 'cpm') {
+        totalRevenue += (count / 1000) * b.agreed_price;
+      } else {
+        const daysActive = new Set(bImps.map(i => i.occurred_at.slice(0, 10))).size;
+        totalRevenue += daysActive * b.agreed_price;
+      }
+    });
+
+    res.json({
+      total_slots: slots.length,
+      active_slots: activeSlots,
+      total_impressions: totalImpressions,
+      total_revenue: Math.round(totalRevenue * 100) / 100,
+      total_bookings: bookings.length
+    });
+  } catch (err) {
+    console.error('[ads/reporting] GET /tenant/overview', err);
+    res.status(500).json({ error: 'No se pudo obtener el resumen' });
+  }
+});
+
+// GET /api/ads/reporting/advertiser/overview — resumen agregado de todas las campañas del advertiser
+router.get('/advertiser/overview', advertiserAuth, async (req, res) => {
+  try {
+    const { data: campaigns, error: campErr } = await supabaseAdmin
+      .from('ad_campaigns')
+      .select('id, status')
+      .eq('advertiser_id', req.advertiserId);
+    if (campErr) throw campErr;
+
+    const activeCampaigns = campaigns.filter(c => c.status === 'active').length;
+    const campaignIds = campaigns.map(c => c.id);
+
+    if (campaignIds.length === 0) {
+      return res.json({ total_campaigns: 0, active_campaigns: 0, total_impressions: 0, total_spend: 0 });
+    }
+
+    const { data: bookings, error: bookErr } = await supabaseAdmin
+      .from('ad_campaign_slots')
+      .select('id, agreed_price, pricing_model')
+      .in('campaign_id', campaignIds);
+    if (bookErr) throw bookErr;
+
+    const bookingIds = bookings.map(b => b.id);
+    let impressions = [];
+    if (bookingIds.length > 0) {
+      const { data: imps, error: impErr } = await supabaseAdmin
+        .from('ad_impressions')
+        .select('campaign_slot_id, occurred_at, estimated_count')
+        .in('campaign_slot_id', bookingIds);
+      if (impErr) throw impErr;
+      impressions = imps;
+    }
+
+    let totalImpressions = 0;
+    let totalSpend = 0;
+    bookings.forEach(b => {
+      const bImps = impressions.filter(i => i.campaign_slot_id === b.id);
+      const count = bImps.reduce((sum, i) => sum + (i.estimated_count || 0), 0);
+      totalImpressions += count;
+      if (b.pricing_model === 'cpm') {
+        totalSpend += (count / 1000) * b.agreed_price;
+      } else {
+        const daysActive = new Set(bImps.map(i => i.occurred_at.slice(0, 10))).size;
+        totalSpend += daysActive * b.agreed_price;
+      }
+    });
+
+    res.json({
+      total_campaigns: campaigns.length,
+      active_campaigns: activeCampaigns,
+      total_impressions: totalImpressions,
+      total_spend: Math.round(totalSpend * 100) / 100
+    });
+  } catch (err) {
+    console.error('[ads/reporting] GET /advertiser/overview', err);
+    res.status(500).json({ error: 'No se pudo obtener el resumen' });
+  }
+});
+
 module.exports = router;
