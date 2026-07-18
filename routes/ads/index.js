@@ -10,5 +10,6 @@ router.use('/signup', require('./signup'));
 router.use('/marketplace', require('./marketplace'));
 router.use('/moderation', require('./moderation'));
 router.use('/reporting', require('./reporting'));
+router.use('/uploads', require('./uploads'));
 
 module.exports = router;
