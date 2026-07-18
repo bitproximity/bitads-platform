@@ -155,7 +155,7 @@ router.get('/slots/:id', tenantAuth, async (req, res) => {
 
     const { data: bookings, error: bookErr } = await supabaseAdmin
       .from('ad_campaign_slots')
-      .select('id, agreed_price, pricing_model, ad_campaigns(name)')
+      .select('id, agreed_price, pricing_model, payment_status, ad_campaigns(name)')
       .eq('slot_id', id);
     if (bookErr) throw bookErr;
 
@@ -185,7 +185,9 @@ router.get('/slots/:id', tenantAuth, async (req, res) => {
       totalImpressions += count;
       totalRevenue += revenue;
       return {
+        booking_id: b.id,
         campaign_name: b.ad_campaigns?.name,
+        payment_status: b.payment_status,
         impressions: count,
         estimated_revenue: Math.round(revenue * 100) / 100
       };
