@@ -18,6 +18,7 @@ router.use(rotationLimiter);
 // GET /api/ads/rotation/:slotApiKey — próximo creativo a mostrar en ese slot
 router.get('/:slotApiKey', async (req, res) => {
   const { slotApiKey } = req.params;
+  const deviceId = req.query.device_id || null; // opcional: hash de MAC address u otro id de dispositivo (NUNCA identificar personas)
 
   try {
     const { data: slot, error: slotErr } = await supabaseAdmin
@@ -99,7 +100,8 @@ router.get('/:slotApiKey', async (req, res) => {
     await supabaseAdmin.from('ad_impressions').insert({
       campaign_slot_id: chosen.booking.id,
       creative_id: chosen.creative.id,
-      estimated_count: 1
+      estimated_count: 1,
+      metadata: deviceId ? { device_id: deviceId } : {}
     });
 
     res.json({
