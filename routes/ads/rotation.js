@@ -11,6 +11,9 @@
 const express = require('express');
 const router = express.Router();
 const { supabaseAdmin } = require('../../lib/supabaseClient');
+const { rotationLimiter } = require('../../middleware/rateLimits');
+
+router.use(rotationLimiter);
 
 // GET /api/ads/rotation/:slotApiKey — próximo creativo a mostrar en ese slot
 router.get('/:slotApiKey', async (req, res) => {
