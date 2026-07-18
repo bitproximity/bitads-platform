@@ -11,11 +11,12 @@ module.exports = async function tenantAuth(req, res, next) {
   try {
     const { data: tenant, error } = await supabaseAdmin
       .from('bitads_tenants')
-      .select('id, name, status')
+      .select('id, name, status, email_verified')
       .eq('api_key', apiKey)
       .single();
 
     if (error || !tenant) return res.status(401).json({ error: 'API key inválida' });
+    if (!tenant.email_verified) return res.status(403).json({ error: 'Confirmá tu email antes de entrar. Revisá tu bandeja de entrada.' });
     if (tenant.status !== 'active') return res.status(403).json({ error: 'Cuenta suspendida' });
 
     req.bitadsTenantId = tenant.id;
