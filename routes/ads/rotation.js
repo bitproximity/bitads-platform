@@ -105,7 +105,8 @@ router.get('/:slotApiKey', async (req, res) => {
         type: chosen.creative.creative_type,
         file_url: chosen.creative.file_url,
         duration_sec: chosen.creative.duration_sec,
-        dimensions: chosen.creative.dimensions
+        dimensions: chosen.creative.dimensions,
+        destination_url: chosen.creative.destination_url || null
       },
       campaign_slot_id: chosen.booking.id
     });
