@@ -33,11 +33,48 @@ router.get('/campaigns/:id', advertiserAuth, async (req, res) => {
     if (bookingIds.length > 0) {
       const { data: imps, error: impErr } = await supabaseAdmin
         .from('ad_impressions')
-        .select('campaign_slot_id, occurred_at, estimated_count, metadata')
+        .select('campaign_slot_id, creative_id, occurred_at, estimated_count, metadata')
         .in('campaign_slot_id', bookingIds);
       if (impErr) throw impErr;
       impressions = imps;
     }
+
+    // mapa de creativos de esta campaña, para poder calcular completion rate de audio
+    const { data: creatives, error: creativesErr } = await supabaseAdmin
+      .from('ad_creatives')
+      .select('id, creative_type, duration_sec')
+      .eq('campaign_id', id);
+    if (creativesErr) throw creativesErr;
+    const creativeById = Object.fromEntries((creatives || []).map(c => [c.id, c]));
+
+    // ---- completion rate de audio ----
+    // solo cuenta impresiones de creativos tipo 'audio' que trajeron
+    // metadata.play_duration_sec (el player todavía no lo manda por
+    // defecto — esto queda listo para cuando lo empiece a reportar)
+    const audioImpsWithData = impressions.filter(i => {
+      const creative = creativeById[i.creative_id];
+      return creative && creative.creative_type === 'audio' && i.metadata && typeof i.metadata.play_duration_sec === 'number';
+    });
+    let audio_completion_rate = null;
+    if (audioImpsWithData.length > 0) {
+      const ratios = audioImpsWithData.map(i => {
+        const creative = creativeById[i.creative_id];
+        const full = creative.duration_sec || i.metadata.play_duration_sec;
+        return Math.min(i.metadata.play_duration_sec / full, 1);
+      });
+      audio_completion_rate = Math.round((ratios.reduce((a, b) => a + b, 0) / ratios.length) * 1000) / 10; // %
+    }
+
+    // ---- reach (personas/dispositivos únicos) ----
+    // solo cuenta si el player mandó metadata.device_id — no inventamos
+    // el número si no hay dato real detrás.
+    const withDeviceId = impressions.filter(i => i.metadata && i.metadata.device_id);
+    const unique_reach = withDeviceId.length > 0
+      ? new Set(withDeviceId.map(i => i.metadata.device_id)).size
+      : null;
+    const reach_coverage_pct = impressions.length > 0
+      ? Math.round((withDeviceId.length / impressions.length) * 1000) / 10
+      : 0;
 
     // agregado total + por slot + spend estimado
     let totalImpressions = 0;
@@ -88,7 +125,10 @@ router.get('/campaigns/:id', advertiserAuth, async (req, res) => {
         clicks: totalClicks,
         estimated_spend: Math.round(totalSpend * 100) / 100,
         budget_total: campaign.budget_total,
-        budget_used_pct: campaign.budget_total ? Math.round((totalSpend / campaign.budget_total) * 1000) / 10 : null
+        budget_used_pct: campaign.budget_total ? Math.round((totalSpend / campaign.budget_total) * 1000) / 10 : null,
+        audio_completion_rate, // % promedio, null si no hay datos todavía
+        unique_reach,          // dispositivos únicos, null si no hay device_id reportado
+        reach_coverage_pct     // % de impresiones que sí traían device_id (transparencia sobre qué tan completo es el dato)
       },
       per_slot: perSlot,
       daily_series
