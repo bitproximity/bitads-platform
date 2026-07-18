@@ -6,6 +6,9 @@
 const express = require('express');
 const router = express.Router();
 const { supabaseAdmin } = require('../../lib/supabaseClient');
+const { leadsLimiter } = require('../../middleware/rateLimits');
+
+router.use(leadsLimiter);
 
 // Validación simple de email (suficiente para filtrar basura obvia,
 // no pretende ser RFC-perfecta).
