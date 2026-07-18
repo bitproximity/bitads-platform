@@ -9,5 +9,6 @@ router.use('/leads', require('./leads'));
 router.use('/signup', require('./signup'));
 router.use('/marketplace', require('./marketplace'));
 router.use('/moderation', require('./moderation'));
+router.use('/reporting', require('./reporting'));
 
 module.exports = router;
