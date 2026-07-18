@@ -7,6 +7,7 @@ const express = require('express');
 const router = express.Router();
 const { supabaseAdmin } = require('../../lib/supabaseClient');
 const { leadsLimiter } = require('../../middleware/rateLimits');
+const { notifyNewLead } = require('../../lib/email');
 
 router.use(leadsLimiter);
 
@@ -47,6 +48,10 @@ router.post('/', async (req, res) => {
       .single();
 
     if (error) throw error;
+
+    notifyNewLead('mario@bitproximity.com', name, email, role, source_page)
+      .catch(e => console.warn('[ads/leads] no se pudo enviar notificación de lead', e));
+
     res.status(201).json({ ok: true, lead: { id: data.id } });
   } catch (err) {
     console.error('[ads/leads] POST /', err);
