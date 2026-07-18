@@ -155,7 +155,7 @@ router.get('/slots/:id', tenantAuth, async (req, res) => {
 
     const { data: bookings, error: bookErr } = await supabaseAdmin
       .from('ad_campaign_slots')
-      .select('id, agreed_price, pricing_model, payment_status, ad_campaigns(name)')
+      .select('id, agreed_price, pricing_model, commission_pct, payout_status, ad_campaigns(name)')
       .eq('slot_id', id);
     if (bookErr) throw bookErr;
 
@@ -171,31 +171,34 @@ router.get('/slots/:id', tenantAuth, async (req, res) => {
     }
 
     let totalImpressions = 0;
-    let totalRevenue = 0;
+    let totalPayout = 0;
     const perCampaign = bookings.map(b => {
       const bImps = impressions.filter(i => i.campaign_slot_id === b.id);
       const count = bImps.reduce((sum, i) => sum + (i.estimated_count || 0), 0);
-      let revenue = 0;
+      let grossRevenue = 0;
       if (b.pricing_model === 'cpm') {
-        revenue = (count / 1000) * b.agreed_price;
+        grossRevenue = (count / 1000) * b.agreed_price;
       } else {
         const daysActive = new Set(bImps.map(i => i.occurred_at.slice(0, 10))).size;
-        revenue = daysActive * b.agreed_price;
+        grossRevenue = daysActive * b.agreed_price;
       }
+      // el tenant ve su parte NETA (después de la comisión de la plataforma),
+      // no el bruto que paga el anunciante — eso es interno, no es su dato.
+      const netPayout = grossRevenue * (1 - (b.commission_pct || 0) / 100);
       totalImpressions += count;
-      totalRevenue += revenue;
+      totalPayout += netPayout;
       return {
         booking_id: b.id,
         campaign_name: b.ad_campaigns?.name,
-        payment_status: b.payment_status,
+        payout_status: b.payout_status, // ¿ya te pagaron a vos, dueño del venue?
         impressions: count,
-        estimated_revenue: Math.round(revenue * 100) / 100
+        estimated_payout: Math.round(netPayout * 100) / 100
       };
     });
 
     res.json({
       slot,
-      totals: { impressions: totalImpressions, estimated_revenue: Math.round(totalRevenue * 100) / 100 },
+      totals: { impressions: totalImpressions, estimated_payout: Math.round(totalPayout * 100) / 100 },
       per_campaign: perCampaign
     });
   } catch (err) {
@@ -217,12 +220,12 @@ router.get('/tenant/overview', tenantAuth, async (req, res) => {
     const activeSlots = slots.filter(s => s.status === 'active').length;
 
     if (slotIds.length === 0) {
-      return res.json({ total_slots: 0, active_slots: 0, total_impressions: 0, total_revenue: 0, total_bookings: 0 });
+      return res.json({ total_slots: 0, active_slots: 0, total_impressions: 0, total_payout: 0, total_bookings: 0 });
     }
 
     const { data: bookings, error: bookErr } = await supabaseAdmin
       .from('ad_campaign_slots')
-      .select('id, agreed_price, pricing_model')
+      .select('id, agreed_price, pricing_model, commission_pct')
       .in('slot_id', slotIds);
     if (bookErr) throw bookErr;
 
@@ -238,24 +241,26 @@ router.get('/tenant/overview', tenantAuth, async (req, res) => {
     }
 
     let totalImpressions = 0;
-    let totalRevenue = 0;
+    let totalPayout = 0;
     bookings.forEach(b => {
       const bImps = impressions.filter(i => i.campaign_slot_id === b.id);
       const count = bImps.reduce((sum, i) => sum + (i.estimated_count || 0), 0);
       totalImpressions += count;
+      let gross = 0;
       if (b.pricing_model === 'cpm') {
-        totalRevenue += (count / 1000) * b.agreed_price;
+        gross = (count / 1000) * b.agreed_price;
       } else {
         const daysActive = new Set(bImps.map(i => i.occurred_at.slice(0, 10))).size;
-        totalRevenue += daysActive * b.agreed_price;
+        gross = daysActive * b.agreed_price;
       }
+      totalPayout += gross * (1 - (b.commission_pct || 0) / 100);
     });
 
     res.json({
       total_slots: slots.length,
       active_slots: activeSlots,
       total_impressions: totalImpressions,
-      total_revenue: Math.round(totalRevenue * 100) / 100,
+      total_payout: Math.round(totalPayout * 100) / 100,
       total_bookings: bookings.length
     });
   } catch (err) {
