@@ -11,5 +11,6 @@ router.use('/marketplace', require('./marketplace'));
 router.use('/moderation', require('./moderation'));
 router.use('/reporting', require('./reporting'));
 router.use('/uploads', require('./uploads'));
+router.use('/payments', require('./payments'));
 
 module.exports = router;
