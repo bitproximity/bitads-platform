@@ -104,6 +104,16 @@ router.get('/:slotApiKey', async (req, res) => {
       metadata: deviceId ? { device_id: deviceId } : {}
     });
 
+    let formFields = null;
+    if (chosen.creative.creative_type === 'form') {
+      const { data: fields } = await supabaseAdmin
+        .from('ad_form_fields')
+        .select('field_key, field_label, field_type, options, required')
+        .eq('creative_id', chosen.creative.id)
+        .order('display_order', { ascending: true });
+      formFields = fields || [];
+    }
+
     res.json({
       creative: {
         id: chosen.creative.id,
@@ -111,7 +121,8 @@ router.get('/:slotApiKey', async (req, res) => {
         file_url: chosen.creative.file_url,
         duration_sec: chosen.creative.duration_sec,
         dimensions: chosen.creative.dimensions,
-        destination_url: chosen.creative.destination_url || null
+        destination_url: chosen.creative.destination_url || null,
+        form_fields: formFields
       },
       campaign_slot_id: chosen.booking.id
     });
@@ -143,6 +154,64 @@ router.post('/impression', async (req, res) => {
   } catch (err) {
     console.error('[ads/rotation] POST /impression', err);
     res.status(500).json({ error: 'No se pudo registrar la impresión' });
+  }
+});
+
+// POST /api/ads/rotation/form-response — envío de respuestas de un
+// creativo tipo 'form' (captura de leads para el anunciante). Público,
+// sin auth — lo llama el widget/portal donde se muestra el formulario.
+router.post('/form-response', async (req, res) => {
+  const { creative_id, campaign_slot_id, responses } = req.body;
+
+  if (!creative_id || !responses || typeof responses !== 'object') {
+    return res.status(400).json({ error: 'creative_id y responses son requeridos' });
+  }
+
+  try {
+    // validar que el creativo existe y es tipo 'form', y traer los
+    // campos requeridos para chequear que no falte ninguno obligatorio
+    const { data: creative, error: creativeErr } = await supabaseAdmin
+      .from('ad_creatives')
+      .select('id, creative_type')
+      .eq('id', creative_id)
+      .single();
+
+    if (creativeErr || !creative || creative.creative_type !== 'form') {
+      return res.status(404).json({ error: 'Creativo tipo form no encontrado' });
+    }
+
+    const { data: fields } = await supabaseAdmin
+      .from('ad_form_fields')
+      .select('field_key, required')
+      .eq('creative_id', creative_id);
+
+    const missing = (fields || []).filter(f => f.required && !responses[f.field_key]);
+    if (missing.length > 0) {
+      return res.status(400).json({ error: `Faltan campos requeridos: ${missing.map(f => f.field_key).join(', ')}` });
+    }
+
+    const { error } = await supabaseAdmin.from('ad_form_responses').insert({
+      creative_id,
+      campaign_slot_id: campaign_slot_id || null,
+      responses
+    });
+
+    if (error) throw error;
+
+    // el envío del formulario también cuenta como impresión/interacción
+    if (campaign_slot_id) {
+      await supabaseAdmin.from('ad_impressions').insert({
+        campaign_slot_id,
+        creative_id,
+        estimated_count: 0,
+        metadata: { form_submitted: true }
+      });
+    }
+
+    res.status(201).json({ ok: true });
+  } catch (err) {
+    console.error('[ads/rotation] POST /form-response', err);
+    res.status(500).json({ error: 'No se pudo enviar el formulario' });
   }
 });
 
