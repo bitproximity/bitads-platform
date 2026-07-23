@@ -93,18 +93,32 @@ router.patch('/:id/status', async (req, res) => {
 // POST /api/ads/campaigns/:id/creatives
 router.post('/:id/creatives', async (req, res) => {
   const { id } = req.params;
-  const { creative_type, file_url, duration_sec, dimensions, applicable_slot_types, destination_url } = req.body;
+  const { creative_type, file_url, duration_sec, dimensions, applicable_slot_types, destination_url, form_title, form_fields } = req.body;
 
-  const validCreativeTypes = ['image', 'video', 'audio', 'html5'];
+  const validCreativeTypes = ['image', 'video', 'audio', 'html5', 'form'];
   if (!validCreativeTypes.includes(creative_type)) {
     return res.status(400).json({ error: `creative_type inválido. Usar: ${validCreativeTypes.join(', ')}` });
   }
-  if (!file_url) return res.status(400).json({ error: 'file_url es requerido' });
+  if (creative_type !== 'form' && !file_url) {
+    return res.status(400).json({ error: 'file_url es requerido' });
+  }
   if (!Array.isArray(applicable_slot_types) || applicable_slot_types.length === 0) {
     return res.status(400).json({ error: 'applicable_slot_types debe ser un array no vacío' });
   }
   if (['video', 'audio'].includes(creative_type) && !duration_sec) {
     return res.status(400).json({ error: 'duration_sec es requerido para video/audio' });
+  }
+
+  if (creative_type === 'form') {
+    if (!Array.isArray(form_fields) || form_fields.length === 0) {
+      return res.status(400).json({ error: 'form_fields debe ser un array no vacío para creativos tipo form' });
+    }
+    const validFieldTypes = ['text', 'email', 'phone', 'date', 'select'];
+    for (const f of form_fields) {
+      if (!f.field_key || !f.field_label || !validFieldTypes.includes(f.field_type)) {
+        return res.status(400).json({ error: `Cada campo necesita field_key, field_label y field_type válido (${validFieldTypes.join(', ')})` });
+      }
+    }
   }
 
   try {
@@ -122,7 +136,7 @@ router.post('/:id/creatives', async (req, res) => {
       .insert({
         campaign_id: id,
         creative_type,
-        file_url,
+        file_url: file_url || null,
         duration_sec: duration_sec || null,
         dimensions: dimensions || null,
         destination_url: destination_url || null,
@@ -133,6 +147,27 @@ router.post('/:id/creatives', async (req, res) => {
       .single();
 
     if (error) throw error;
+
+    // si es formulario, insertar sus campos
+    if (creative_type === 'form') {
+      const fieldsToInsert = form_fields.map((f, idx) => ({
+        creative_id: data.id,
+        field_key: f.field_key,
+        field_label: f.field_label,
+        field_type: f.field_type,
+        options: f.options || null,
+        required: f.required !== false,
+        display_order: idx
+      }));
+
+      const { error: fieldsErr } = await supabaseAdmin.from('ad_form_fields').insert(fieldsToInsert);
+      if (fieldsErr) {
+        // rollback manual del creativo si fallan los campos, para no dejar un form vacío
+        await supabaseAdmin.from('ad_creatives').delete().eq('id', data.id);
+        throw fieldsErr;
+      }
+    }
+
     res.status(201).json({ creative: data });
   } catch (err) {
     console.error('[ads/campaigns] POST /:id/creatives', err);
