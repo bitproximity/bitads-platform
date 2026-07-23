@@ -328,4 +328,42 @@ router.get('/advertiser/overview', advertiserAuth, async (req, res) => {
   }
 });
 
+// GET /api/ads/reporting/campaigns/:id/leads — respuestas de formularios de esta campaña
+router.get('/campaigns/:id/leads', advertiserAuth, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const { data: campaign, error: campErr } = await supabaseAdmin
+      .from('ad_campaigns')
+      .select('id')
+      .eq('id', id)
+      .eq('advertiser_id', req.advertiserId)
+      .single();
+
+    if (campErr || !campaign) return res.status(404).json({ error: 'Campaña no encontrada' });
+
+    const { data: formCreatives, error: creativesErr } = await supabaseAdmin
+      .from('ad_creatives')
+      .select('id, form_title:file_url')
+      .eq('campaign_id', id)
+      .eq('creative_type', 'form');
+    if (creativesErr) throw creativesErr;
+
+    const creativeIds = formCreatives.map(c => c.id);
+    if (creativeIds.length === 0) return res.json({ leads: [] });
+
+    const { data: responses, error: respErr } = await supabaseAdmin
+      .from('ad_form_responses')
+      .select('id, responses, submitted_at')
+      .in('creative_id', creativeIds)
+      .order('submitted_at', { ascending: false });
+    if (respErr) throw respErr;
+
+    res.json({ leads: responses });
+  } catch (err) {
+    console.error('[ads/reporting] GET /campaigns/:id/leads', err);
+    res.status(500).json({ error: 'No se pudieron obtener los leads' });
+  }
+});
+
 module.exports = router;
