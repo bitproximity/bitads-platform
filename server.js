@@ -1,6 +1,6 @@
 // server.js — entrypoint de bitads-api
 const express = require('express');
-const cors = require('cors');
+const { corsPolicy } = require('./middleware/corsPolicy');
 
 const app = express();
 
@@ -9,7 +9,9 @@ const app = express();
 // todos, lo que rompería el rate limiting).
 app.set('trust proxy', 1);
 
-app.use(cors()); // el player llama desde Bit Proximity (otro dominio) -> CORS abierto en este endpoint público
+// Abierto solo en el player público (/api/ads/rotation). El resto usa
+// el allowlist de CORS_ALLOWED_ORIGINS (middleware/corsPolicy.js).
+app.use(corsPolicy);
 app.use(express.json());
 
 app.get('/health', (req, res) => res.json({ ok: true, service: 'bitads-api' }));
