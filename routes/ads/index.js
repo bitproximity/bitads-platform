@@ -12,5 +12,6 @@ router.use('/moderation', require('./moderation'));
 router.use('/reporting', require('./reporting'));
 router.use('/uploads', require('./uploads'));
 router.use('/admin', require('./admin'));
+router.use('/dashboard', require('./dashboard'));
 
 module.exports = router;
