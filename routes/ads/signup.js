@@ -41,7 +41,7 @@ function verificationPage(opts) {
     '<div style="background:#171C22;border:1px solid #22272E;border-radius:8px;padding:16px;margin:24px 0;word-break:break-all;font-family:monospace;font-size:14px;color:#F5F3EF;">' +
     apiKey +
     '</div>' +
-    '<p style="color:#8A9099;font-size:13px;">Guardá este key ahora, no lo vamos a volver a mostrar. Despues anda a <a href="https://admin.bitadsapp.com" style="color:#12E0C4;">admin.bitadsapp.com</a> para entrar.</p>'
+    '<p style="color:#8A9099;font-size:13px;">Guarda esta clave ahora: no volveremos a mostrarla. Después ve a <a href="https://admin.bitadsapp.com" style="color:#12E0C4;">admin.bitadsapp.com</a> para entrar.</p>'
   ) : '';
 
   const titleColor = isError ? '#FF5C5C' : '#F5F3EF';
@@ -78,7 +78,7 @@ router.post('/tenant', async (req, res) => {
       .maybeSingle();
 
     if (existingResult.data) {
-      return res.status(409).json({ error: 'Ya existe una cuenta con ese email. Si perdiste tu API key, contactanos.' });
+      return res.status(409).json({ error: 'Ya existe una cuenta con ese email. Si perdiste tu API key, contáctanos.' });
     }
 
     const token = generateToken();
@@ -129,7 +129,7 @@ router.post('/advertiser', async (req, res) => {
       .maybeSingle();
 
     if (existingResult.data) {
-      return res.status(409).json({ error: 'Ya existe una cuenta con ese email. Si perdiste tu API key, contactanos.' });
+      return res.status(409).json({ error: 'Ya existe una cuenta con ese email. Si perdiste tu API key, contáctanos.' });
     }
 
     const token = generateToken();
@@ -195,14 +195,14 @@ router.get('/verify', async (req, res) => {
     if (account.email_verified) {
       return res.send(verificationPage({
         title: 'Ya confirmada',
-        message: 'Esta cuenta ya estaba confirmada. Anda a admin.bitadsapp.com para entrar con tu API key.'
+        message: 'Esta cuenta ya estaba confirmada. Ve a admin.bitadsapp.com para entrar con tu API key.'
       }));
     }
 
     if (new Date(account.verification_token_expires) < new Date()) {
       return res.status(400).send(verificationPage({
         title: 'Link vencido',
-        message: 'Este link vencio (duran 24 horas). Contactanos para reactivar tu cuenta.',
+        message: 'Este enlace venció (dura 24 horas). Contáctanos para reactivar tu cuenta.',
         isError: true
       }));
     }
@@ -223,7 +223,7 @@ router.get('/verify', async (req, res) => {
     console.error('[ads/signup] GET /verify', err);
     res.status(500).send(verificationPage({
       title: 'Error',
-      message: 'Algo salio mal al confirmar tu cuenta. Intenta de nuevo o contactanos.',
+      message: 'Algo salió mal al confirmar tu cuenta. Inténtalo de nuevo o contáctanos.',
       isError: true
     }));
   }
