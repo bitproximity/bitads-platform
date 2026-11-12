@@ -14,7 +14,7 @@ const signupLimiter = rateLimit({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Demasiados intentos de registro. Probá de nuevo en 15 minutos.' }
+  message: { error: 'Demasiados intentos de registro. Prueba de nuevo en 15 minutos.' }
 });
 
 // Formulario de leads: 10 por IP cada 15 minutos.
@@ -23,7 +23,7 @@ const leadsLimiter = rateLimit({
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Demasiados envíos. Probá de nuevo en 15 minutos.' }
+  message: { error: 'Demasiados envíos. Prueba de nuevo en 15 minutos.' }
 });
 
 // Motor de rotación: es llamado por players reales muy seguido (cada
