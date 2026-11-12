@@ -59,7 +59,15 @@ function verificationPage(opts) {
 
 router.use(signupLimiter);
 
-router.post('/tenant', async (req, res) => {
+// Registro de autoservicio CERRADO por defecto: BitAds opera por cotización (ver bitadsapp.com).
+// Para reabrirlo sin tocar código, define SELF_SERVE_SIGNUP=on en Railway.
+// /verify sigue activo para confirmar cuentas creadas antes del cierre.
+function signupClosed(req, res, next) {
+  if (process.env.SELF_SERVE_SIGNUP === 'on') return next();
+  return res.status(403).json({ error: 'El registro de cuentas está cerrado. Para anunciar o sumar tu espacio, agenda una conversación: https://cal.com/bitproximity/30min' });
+}
+
+router.post('/tenant', signupClosed, async (req, res) => {
   const name = req.body.name;
   const contact_email = req.body.contact_email;
 
@@ -109,7 +117,7 @@ router.post('/tenant', async (req, res) => {
   }
 });
 
-router.post('/advertiser', async (req, res) => {
+router.post('/advertiser', signupClosed, async (req, res) => {
   const name = req.body.name;
   const contact_email = req.body.contact_email;
   const industry = req.body.industry;
